@@ -32,13 +32,14 @@
 
 SoftwareSerial mySerial(4, 5); // RX, TX
 
-Ultrasonic ultrasonic(9,8); //Ultrasonic ultrasonic(Trig,Echo);
+Ultrasonic ultrasonic(8, 9); //Ultrasonic ultrasonic(Trig,Echo);
 
 Motor motorA = Motor(12, 3);
 Motor motorB = Motor(13, 11);
 
 String command = "NULL";// Command received (lowercase)
-int flag = 0;// Makes sure we only run once per command
+bool readCommand = false;// Makes sure we only run once per command
+bool avoidingObstacle = false;
 
 void setup() {
   // Init bluetooth serial
@@ -46,38 +47,40 @@ void setup() {
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
-  
-  Serial.println("This is USB");
-  
+
   mySerial.begin(9600);
+
+  // Setup Ultrasonic sensor
+  pinMode(10, OUTPUT); // VCC pin
+  pinMode(6, OUTPUT); // GND ping
+  digitalWrite(10, HIGH); // VCC +5V mode
+  digitalWrite(6, LOW);  // GND mode
 }
 
 void loop() {
   if (mySerial.available())
-  Serial.write(mySerial.read());
+    Serial.write(mySerial.read());
   if (Serial.available())
-  mySerial.write(Serial.read());
-  
-  // Check for collisions
-  bool shouldAvoid = willCollide(5);
+    mySerial.write(Serial.read());
 
-  // If some data is sent, read it and save it in the command variable
-  if (shouldAvoid) {
+  // Avoid obstacles!
+  if (willCollide(5)) {
     avoidObstacle();
   }
   
+  // If some data is sent, read it and save it in the command variable
   if (Serial.available() > 0) {
     command = Serial.readString();
     command.toLowerCase();
 
-    flag = 0;
+    readCommand = false;
   }
 
   // Parse the command
-  if (flag == 0) {//Make sure we only execute this once per new command
+  if (!readCommand) {//Make sure we only execute this once per new command
     // Parse the command
-    //parseCommand();
-    flag = 1;
+    parseCommand();
+    readCommand = true;
   }
 }
 
@@ -88,12 +91,12 @@ void parseCommand () {
   if (command.substring(command.length() - 2).compareTo("w") == 0) {
     motorA.go(command.toInt());
     motorB.go(command.toInt());
-    
+
     Serial.println("SUCCESS: Continuing forward..");
 
   } else if (command.substring(command.length() - 1).compareTo("l") == 0) {
     motorA.go(command.toInt());
-    
+
     Serial.println("SUCCESS: Turned left.");
 
   } else if (command.substring(command.length() - 1).compareTo("r")  == 0) {
@@ -104,7 +107,7 @@ void parseCommand () {
   }  else if (command.compareTo("stop") == 0) {
     motorA.stop();
     motorB.stop();
-    
+
     Serial.println("SUCCESS: Stopped.");
 
   } else {
@@ -113,21 +116,32 @@ void parseCommand () {
   }
 }
 
-bool willCollide(int distance) {
+bool willCollide(int distance) {// Distance in centimeters
   int distanceToObstacle = ultrasonic.Ranging(CM);
-  return (distanceToObstacle < distance); 
+  Serial.print(distanceToObstacle);
+  Serial.println(" cm" );
+  return (distanceToObstacle < distance);
 }
 
 void avoidObstacle () {
-   Serial.println("WARNING: Avoiding obstacle...");
+  if (!avoidingObstacle) {
+    avoidingObstacle = true;
+    Serial.println("WARNING: Avoiding obstacle...");
 
-   motorA.stop();
-   motorB.stop();
-   
-   bool shouldAvoid = willCollide(5);
-   while (shouldAvoid) {
-     motorB.go(5);
-   }
-   
-   Serial.println("SUCCESS: Obstacle avoided!");
+    motorA.stop();
+    motorB.stop();
+
+    while (willCollide(5)) {
+      motorB.go(255);
+      delay(1000);
+      motorB.stop();
+      delay(1000);
+    }
+
+    motorA.stop();
+    motorB.stop();
+
+    avoidingObstacle = false;
+    Serial.println("SUCCESS: Obstacle avoided!");
+  }
 }
