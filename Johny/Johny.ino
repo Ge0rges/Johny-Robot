@@ -26,10 +26,13 @@
  * @author Georges Kanaan
  */
 
-#import "Motor.h"
+#include "Motor.h"
 #include <Ultrasonic.h>
+#include <SoftwareSerial.h>
 
-Ultrasonic ultrasonic(12,13); //Ultrasonic ultrasonic(Trig,Echo);
+SoftwareSerial mySerial(4, 5); // RX, TX
+
+Ultrasonic ultrasonic(9,8); //Ultrasonic ultrasonic(Trig,Echo);
 
 Motor motorA = Motor(12, 3);
 Motor motorB = Motor(13, 11);
@@ -40,9 +43,21 @@ int flag = 0;// Makes sure we only run once per command
 void setup() {
   // Init bluetooth serial
   Serial.begin(9600);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
+  
+  Serial.println("This is USB");
+  
+  mySerial.begin(9600);
 }
 
 void loop() {
+  if (mySerial.available())
+  Serial.write(mySerial.read());
+  if (Serial.available())
+  mySerial.write(Serial.read());
+  
   // Check for collisions
   bool shouldAvoid = willCollide(5);
 
@@ -61,7 +76,7 @@ void loop() {
   // Parse the command
   if (flag == 0) {//Make sure we only execute this once per new command
     // Parse the command
-    parseCommand();
+    //parseCommand();
     flag = 1;
   }
 }
